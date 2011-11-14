@@ -82,7 +82,7 @@
   (let [nl? #{\newline}
         lines (remove #(some nl? %) (partition-by nl? program-text))
         start (or (first (for [[y line] (map-indexed list lines)
-                               :let [x (.indexOf line "$")]
+                               :let [x (.indexOf line \$)]
                                :when (not (neg? x))]
                            [y x]))
                   [0 0])
@@ -94,10 +94,19 @@
     (->> (assoc initial-world :inputs inputs, :pos start)
          (iterate (fn [world]
                     (let [instruction (get-in program (:pos world))]
-                      (move (instruction world)))))
-         (drop-while (! :done)))))
+                      (if-not instruction
+                        (throw (Exception. (print-str world))))
+                      (move (instruction world))))))))
 
-(def snusp (comp :outputs first snusp-states))
+(defn snusp [program inputs]
+  (->> (snusp-states program inputs)
+       (drop-while (! :done))
+       (first)
+       (:outputs)))
+
+(defn debug [program inputs]
+  (->> (snusp-states program inputs)
+       (take-while (! :done))))
 
 (defn run [file inputs]
   (snusp (slurp (str "/Users/akm/src/clojure/snusp/resources/" file ".snusp"))
