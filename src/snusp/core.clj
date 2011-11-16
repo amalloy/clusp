@@ -67,7 +67,7 @@
                      (-> world
                          (merge (peek stack))
                          (update-in [:call-stack] pop)
-                         (move))                     
+                         (move))
                      (assoc world :done true)))})
 
 (def initial-world
