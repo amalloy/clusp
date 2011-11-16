@@ -109,5 +109,5 @@
        (take-while (! :done))))
 
 (defn run [file inputs]
-  (snusp (slurp (str "/Users/akm/src/clojure/snusp/resources/" file ".snusp"))
+  (snusp (slurp (str "/home/akm/src/clojure/snusp/resources/" file ".snusp"))
          inputs))
