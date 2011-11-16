@@ -6,3 +6,4 @@ lib
 classes
 build
 /snusp
+.lein-deps-sum
