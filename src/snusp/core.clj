@@ -41,6 +41,14 @@
   [{:keys [tape head]}]
   (get tape head))
 
+(defn end [world]
+  (if-let [stack (not-empty (:call-stack world))]
+    (-> world
+        (merge (peek stack))
+        (update-in [:call-stack] pop)
+        (move))
+    (assoc world :done true)))
+
 (def actions {\+ (tape-fn inc)
               \- (tape-fn dec)
               \> (head-fn inc)
@@ -58,13 +66,7 @@
                               conj (curr-tape world)))
               \@ (world-fn [call-stack dir pos]
                    (conj call-stack (keyed [dir pos])))
-              \# (fn end [world]
-                   (if-let [stack (not-empty (:call-stack world))]
-                     (-> world
-                         (merge (peek stack))
-                         (update-in [:call-stack] pop)
-                         (move))
-                     (assoc world :done true)))})
+              \# end})
 
 (def initial-world
   {:dir [0 1]
@@ -88,9 +90,7 @@
                       (get actions c identity)))))]
     (->> (assoc initial-world :inputs inputs, :pos start)
          (iterate (fn [world]
-                    (let [instruction (get-in program (:pos world))]
-                      (if-not instruction
-                        (throw (Exception. (print-str world))))
+                    (let [instruction (get-in program (:pos world) end)]
                       (move (instruction world))))))))
 
 (defn snusp [program inputs]
