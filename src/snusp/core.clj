@@ -1,21 +1,23 @@
 (ns snusp.core
-  (:use [useful.fn :only [fix !]]
+  (:use [useful.fn :only [to-fix !]]
+        [useful.map :only [keyed]]
         useful.debug))
 
-(defn move
-  "Advance pos one unit in the current direction."
-  [world]
-  (update-in world [:pos] (partial map + (:dir world))))
+(defn partition-around [pred coll]
+  (remove (comp pred first)
+          (partition-by pred coll)))
 
-(defn ensure-tape
-  "Make certain the tape is long enough that the head can read/write
-  at its current location."
-  [world]
-  (update-in world [:tape]
-             (fn [tape]
-               (if (= (:head world) (count tape))
-                 (conj tape 0),
-                 tape))))
+(defmacro world-fn [[main :as args] body]
+  `(fn [{:keys [~@args] :as world#}]
+     (assoc world# ~(keyword main) ~body)))
+
+(def move (world-fn [pos dir]
+            (map + pos dir)))
+
+(def ensure-tape (world-fn [tape head]
+                   (if (= head (count tape))
+                     (conj tape 0)
+                     tape)))
 
 (defn tape-fn
   "Build a function for modifying the tape at the current read head."
@@ -23,24 +25,21 @@
   (fn [world]
     (update-in world [:tape (:head world)] f)))
 
-(defn head-fn
-  "Build a function for moving the read head according to a function."
-  [f]
-  (fn [world]
-    (ensure-tape (update-in world [:head] f))))
+(defn head-fn [f]
+  (comp ensure-tape (world-fn [head] (f head))))
 
 (defn mirror
   "Build a function for changing the direction of execution by pi/2."
   [m]
   (let [m (into m (for [[k v] m]
                     [v k]))]
-    (fn [world]
-      (update-in world [:dir] m))))
+    (world-fn [dir]
+      (m dir))))
 
 (defn curr-tape
   "Read a value from the tape's read-head."
-  [world]
-  (get (:tape world) (:head world)))
+  [{:keys [tape head]}]
+  (get tape head))
 
 (def actions {\+ (tape-fn inc)
               \- (tape-fn dec)
@@ -49,9 +48,7 @@
               \\ (mirror {[1 0] [0 1], [0 -1] [-1 0]})
               \/ (mirror {[0 1] [-1 0], [1 0] [0 -1]})
               \! move
-              \? (fn test [world]
-                   (fix world
-                        (comp zero? curr-tape) move))
+              \? (to-fix (comp zero? curr-tape) move)
               \, (fn read [{[x & more] :inputs :as world}]
                    (-> world
                        (assoc-in [:tape (:head world)] x)
@@ -59,9 +56,8 @@
               \. (fn write [world]
                    (update-in world [:outputs]
                               conj (curr-tape world)))
-              \@ (fn call [world]
-                   (update-in world [:call-stack] conj
-                              (select-keys world [:dir :pos])))
+              \@ (world-fn [call-stack dir pos]
+                   (conj call-stack (keyed [dir pos])))
               \# (fn end [world]
                    (if-let [stack (not-empty (:call-stack world))]
                      (-> world
@@ -79,8 +75,7 @@
    :outputs []})
 
 (defn snusp-states [program-text inputs]
-  (let [nl? #{\newline}
-        lines (remove #(some nl? %) (partition-by nl? program-text))
+  (let [lines (partition-around #{\newline} program-text)
         start (or (first (for [[y line] (map-indexed list lines)
                                :let [x (.indexOf line \$)]
                                :when (not (neg? x))]
